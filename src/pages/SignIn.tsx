@@ -64,7 +64,7 @@ const SignIn = () => {
           )}
         />
         <div style={{ marginTop: "20px", gap: "20px", display: "flex" }}>
-          <a href="/sign-up">Sign up</a>
+          <a href="sign-up">Sign up</a>
           <button type="submit">Login</button>
         </div>
       </div>

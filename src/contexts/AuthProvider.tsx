@@ -1,45 +1,72 @@
 import { ReactElement, createContext, useState } from "react"
-import { AuthContextValue, User } from "../types/contexts/authProvider"
+import {
+  AuthContextValue,
+  LoginResponse,
+  User,
+} from "../types/contexts/authProvider"
 import { useNavigate } from "react-router-dom"
 import { LoginInformation } from "../types/pages/signIn"
+import Cookies from "js-cookie"
+import { encryptUser } from "../helpers/functions/encryptUser"
+import { decryptUser } from "../helpers/functions/decryptUser"
+import api from "../api/api"
 
 export const AuthContext = createContext<AuthContextValue>({})
 
 const AuthProvider = ({ children }: { children: ReactElement }) => {
-  const [user, setUser] = useState<User | undefined>()
-  const [token, setToken] = useState<string>(localStorage.getItem("access-token") || "")
+  const [user, setUser] = useState<User | null>(
+    decryptUser(Cookies.get("user") || "")
+  )
+  const [accessToken, setAccessToken] = useState<string | null>(
+    localStorage.getItem("access-token")
+  )
+
   const navigate = useNavigate()
 
-  const login = async (data: LoginInformation) => {
+  const login = async (loginInformation: LoginInformation) => {
     try {
-      const LOGIN_URL = `${import.meta.env.VITE_API_URL}/authen/login`
-      const response = await fetch(LOGIN_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+      const { data }: { data: LoginResponse; status: number } = await api.post(
+        "/authen/login",
+        loginInformation,
+        {
+          withCredentials: true,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+
+      const { accessToken, user } = data
+      setUser(user)
+      setAccessToken(accessToken)
+      localStorage.setItem("access-token", accessToken)
+      Cookies.set("user", encryptUser(user), {
+        expires: 1,
+        sameSite: "Strict",
       })
-      const res = await response.json()
-      if (res.user) {
-        setUser(res.user)
-        setToken(res.accessToken)
-        localStorage.setItem("site", res.accessToken)
-        navigate("/")
-      }
+      navigate("/")
     } catch (err) {
       console.error(err)
     }
   }
   const logout = () => {
-    setUser(undefined)
-    setToken("")
-    localStorage.removeItem("access-token")
+    setUser(null)
     navigate("/sign-in")
   }
 
+  const refreshAccessToken = async () => {
+    try {
+      const response = await api.post("/authen/refresh-access-token", null, {
+        withCredentials: true,
+      })
+      console.log({ response })
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ login, logout, user, token }}>
+    <AuthContext.Provider
+      value={{ login, logout, user, refreshAccessToken, accessToken }}
+    >
       {children}
     </AuthContext.Provider>
   )
